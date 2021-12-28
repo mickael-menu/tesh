@@ -7,12 +7,66 @@ import (
 	"unicode"
 )
 
-func Parse(content string) ([]Stmt, error) {
-	stmts := []Stmt{}
+func ParseScript(content string) (ScriptNode, error) {
+	script := ScriptNode{}
+	lines, err := parseLines(content)
+	if err != nil {
+		return script, err
+	}
+
+	comment := CommentNode{}
+	var cmd *CommandNode
+
+	flushComment := func() {
+		if !comment.IsEmpty() {
+			script.Nodes = append(script.Nodes, comment)
+			comment = CommentNode{}
+		}
+	}
+
+	for _, line := range lines {
+		switch line := line.(type) {
+		case BlankLine:
+			flushComment()
+
+		case CommandLine:
+			cmd = &CommandNode{
+				Cmd:     line.Cmd,
+				Comment: comment,
+			}
+			script.Nodes = append(script.Nodes, cmd)
+			comment = CommentNode{}
+
+		case CommentLine:
+			flushComment()
+			comment.Content = line.Content
+
+		case DataLine:
+			// For now we discard any comment above data.
+			comment = CommentNode{}
+			if cmd == nil {
+				return script, fmt.Errorf("unexpected data line before any command: `%s`", line.Content)
+			}
+			switch line.FD {
+			case Stdin:
+				cmd.Stdin = cmd.Stdin.Append(line)
+			case Stdout:
+				cmd.Stdout = cmd.Stdout.Append(line)
+			case Stderr:
+				cmd.Stderr = cmd.Stderr.Append(line)
+			}
+		}
+	}
+
+	return script, nil
+}
+
+func parseLines(content string) ([]Line, error) {
+	stmts := []Line{}
 
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	lineno := 0
-	var prevStmt Stmt
+	var prevStmt Line
 	for scanner.Scan() {
 		lineno += 1
 		stmt, err := parseLine(scanner.Text())
@@ -37,9 +91,9 @@ func Parse(content string) ([]Stmt, error) {
 	return stmts, nil
 }
 
-func parseLine(line string) (Stmt, error) {
+func parseLine(line string) (Line, error) {
 	if strings.TrimSpace(line) == "" {
-		return BlankStmt{}, nil
+		return BlankLine{}, nil
 	}
 
 	var prefix string
@@ -65,14 +119,14 @@ func parseLine(line string) (Stmt, error) {
 	return nil, fmt.Errorf("unexpected statement: `%s`", line)
 }
 
-func parseComment(prefix, line string) (Stmt, error) {
+func parseComment(prefix, line string) (Line, error) {
 	if prefix != "" {
 		return nil, fmt.Errorf("a comment must start on its own line")
 	}
-	return CommentStmt{Content: strings.TrimSpace(line)}, nil
+	return CommentLine{Content: strings.TrimSpace(line)}, nil
 }
 
-func parseCommand(prefix, line string) (Stmt, error) {
+func parseCommand(prefix, line string) (Line, error) {
 	if prefix != "" {
 		return nil, fmt.Errorf("invalid command prefix: `%s`", prefix)
 	}
@@ -80,22 +134,22 @@ func parseCommand(prefix, line string) (Stmt, error) {
 	if cmd == "" {
 		return nil, fmt.Errorf("unexpected empty command")
 	}
-	return CommandStmt{Cmd: cmd}, nil
+	return CommandLine{Cmd: cmd}, nil
 }
 
-func parseInput(prefix, line string) (Stmt, error) {
+func parseInput(prefix, line string) (Line, error) {
 	if prefix != "" {
 		return nil, fmt.Errorf("invalid data prefix: `%s`", prefix)
 	}
-	return DataStmt{FD: Stdin, Content: line}, nil
+	return DataLine{FD: Stdin, Content: line}, nil
 }
 
-func parseOutput(prefix, line string) (Stmt, error) {
+func parseOutput(prefix, line string) (Line, error) {
 	fd := Stdout
 	if prefix == "2" {
 		fd = Stderr
 	} else if prefix != "" {
 		return nil, fmt.Errorf("invalid data prefix: `%s`", prefix)
 	}
-	return DataStmt{FD: fd, Content: line}, nil
+	return DataLine{FD: fd, Content: line}, nil
 }
