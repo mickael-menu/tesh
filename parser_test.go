@@ -28,13 +28,11 @@ $ cat test
 1$ cat unknown
 2>cat: unknown: No such file or directory
 
-$ read input
-<Input content
+100$ exit 100
 
-$ ls
->total 8
->-rw-r--r--  1 mickael     6B Dec 28 10:16 test
-`, ScriptNode{Nodes: []Node{
+$ cat -n
+<Input content
+>     1	Input content`, ScriptNode{Nodes: []Node{
 		CommentNode{Content: "Script header"},
 		&CommandNode{
 			Comment: CommentNode{Content: "Create a file"},
@@ -53,12 +51,13 @@ $ ls
 			Stderr:   DataNode{Content: "cat: unknown: No such file or directory\n"},
 		},
 		&CommandNode{
-			Cmd:   "read input",
-			Stdin: DataNode{Content: "Input content\n"},
+			Cmd:      "exit 100",
+			ExitCode: 100,
 		},
 		&CommandNode{
-			Cmd:    "ls",
-			Stdout: DataNode{Content: "total 8\n-rw-r--r--  1 mickael     6B Dec 28 10:16 test\n"},
+			Cmd:    "cat -n",
+			Stdin:  DataNode{Content: "Input content\n"},
+			Stdout: DataNode{Content: "     1\tInput content\n"},
 		},
 	}})
 }
