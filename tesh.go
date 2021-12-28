@@ -2,40 +2,30 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 )
 
 func main() {
-	// var test Stmt
-	// test = CommentStmt{Text: "hello"}
-	// fmt.Printf("Hello, world: %+v\n", test)
-	content := `# Script header
-
-# Create a file
-$ echo "hello\nworld" > test
-
-# Read the created file
-$ cat test
->hello
-
->world
-
-# In-between comment
-
-# Read a file that doesn't exist
-1$ cat unknown
-2>cat: unknown: No such file or directory
-
-$ cat -n
-<Input content
->     1	Input content
-`
-	script, err := ParseScript(content)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %s\n", err.Error())
+	if len(os.Args) < 2 {
+		exit("missing input file argument")
 	}
-	err = Run(script)
+
+	data, err := ioutil.ReadFile(os.Args[1])
+	exitIfErr(err)
+	script, err := ParseScript(string(data))
+	exitIfErr(err)
+	err = Run(script, RunCallbacks{})
+	exitIfErr(err)
+}
+
+func exitIfErr(err error) {
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %s\n", err.Error())
+		exit(err.Error())
 	}
+}
+
+func exit(msg string) {
+	fmt.Fprintf(os.Stderr, "error: %s\n", msg)
+	os.Exit(1)
 }
