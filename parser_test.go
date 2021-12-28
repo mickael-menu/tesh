@@ -28,13 +28,17 @@ func TestParseMultilineComment(t *testing.T) {
 	})
 }
 
+func TestParseInlineComment(t *testing.T) {
+	testParseErr(t, " prefix # comment", "a comment must start on its own line, line 1")
+}
+
 func TestParseCommand(t *testing.T) {
 	testParse(t, "$  echo 'hello world' ", []Stmt{
 		CommandStmt{Cmd: "echo 'hello world'"},
 	})
 }
 
-func TestParseEmptyCommandErrorsOut(t *testing.T) {
+func TestParseEmptyCommand(t *testing.T) {
 	testParseErr(t, "$   ", "unexpected empty command, line 1")
 }
 
@@ -46,6 +50,10 @@ $  echo "hello world"
 		CommandStmt{Cmd: `echo "hello world"`},
 		CommandStmt{Cmd: `zk list --link-to test.md`},
 	})
+}
+
+func TestParseCommandInvalidPrefix(t *testing.T) {
+	testParseErr(t, " pref$  cmd", "invalid command prefix: `pref`")
 }
 
 func TestParseStdin(t *testing.T) {
@@ -74,6 +82,10 @@ func TestParseMultipleStdin(t *testing.T) {
 	})
 }
 
+func TestParseStdinInvalidPrefix(t *testing.T) {
+	testParseErr(t, " pref<  Error", "invalid data prefix: `pref`")
+}
+
 func TestParseStdout(t *testing.T) {
 	testParse(t, " >  Output from a program ", []Stmt{
 		DataStmt{FD: Stdout, Content: "  Output from a program "},
@@ -97,6 +109,71 @@ func TestParseMultipleStdout(t *testing.T) {
 `, []Stmt{
 		DataStmt{FD: Stdout, Content: "  Output from a program \n	\n which spans\nseveral lines    "},
 		DataStmt{FD: Stdout, Content: "Another one"},
+	})
+}
+
+func TestParseStdoutInvalidPrefix(t *testing.T) {
+	testParseErr(t, " a>  Error", "invalid data prefix: `a`")
+}
+
+func TestParseStderr(t *testing.T) {
+	testParse(t, " 2>  Error from a program ", []Stmt{
+		DataStmt{FD: Stderr, Content: "  Error from a program "},
+	})
+}
+
+func TestParseEmptyStderr(t *testing.T) {
+	testParse(t, "	2>", []Stmt{
+		DataStmt{FD: Stderr, Content: ""},
+	})
+}
+
+func TestParseMultipleStderr(t *testing.T) {
+	testParse(t, `
+	2>  Error from a program 
+2>	
+2> which spans
+2>several lines    
+
+2>Another one
+`, []Stmt{
+		DataStmt{FD: Stderr, Content: "  Error from a program \n	\n which spans\nseveral lines    "},
+		DataStmt{FD: Stderr, Content: "Another one"},
+	})
+}
+
+func TestParseCompleteExample(t *testing.T) {
+	testParse(t, `
+# Create a file
+$ echo "hello" > test
+
+# Read the created file
+$ cat test
+>hello
+
+# Read a file that doesn't exist
+$ cat unknown
+2>cat: unknown: No such file or directory
+
+$ read input
+<Input content
+
+$ ls
+>total 8
+>-rw-r--r--  1 mickael     6B Dec 28 10:16 test
+`, []Stmt{
+		CommentStmt{Content: "Create a file"},
+		CommandStmt{Cmd: `echo "hello" > test`},
+		CommentStmt{Content: "Read the created file"},
+		CommandStmt{Cmd: "cat test"},
+		DataStmt{FD: Stdout, Content: "hello"},
+		CommentStmt{Content: "Read a file that doesn't exist"},
+		CommandStmt{Cmd: "cat unknown"},
+		DataStmt{FD: Stderr, Content: "cat: unknown: No such file or directory"},
+		CommandStmt{Cmd: "read input"},
+		DataStmt{FD: Stdin, Content: "Input content"},
+		CommandStmt{Cmd: "ls"},
+		DataStmt{FD: Stdout, Content: "total 8\n-rw-r--r--  1 mickael     6B Dec 28 10:16 test"},
 	})
 }
 

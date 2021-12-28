@@ -92,6 +92,7 @@ func parseLine(line string) (Stmt, error) {
 		return nil, nil
 	}
 
+	var prefix string
 	for i, char := range line {
 		if unicode.IsSpace(char) {
 			continue
@@ -99,23 +100,52 @@ func parseLine(line string) (Stmt, error) {
 
 		switch char {
 		case '#':
-			return CommentStmt{Content: strings.TrimSpace(line[i+1:])}, nil
+			return parseComment(prefix, line[i+1:])
 		case '$':
-			return parseCommand(line[i+1:])
-		case '>':
-			return DataStmt{FD: Stdout, Content: line[i+1:]}, nil
+			return parseCommand(prefix, line[i+1:])
 		case '<':
-			return DataStmt{FD: Stdin, Content: line[i+1:]}, nil
+			return parseInput(prefix, line[i+1:])
+		case '>':
+			return parseOutput(prefix, line[i+1:])
+		default:
+			prefix += string(char)
 		}
 	}
 
 	return nil, fmt.Errorf("unexpected statement: `%s`", line)
 }
 
-func parseCommand(line string) (Stmt, error) {
+func parseComment(prefix, line string) (Stmt, error) {
+	if prefix != "" {
+		return nil, fmt.Errorf("a comment must start on its own line")
+	}
+	return CommentStmt{Content: strings.TrimSpace(line)}, nil
+}
+
+func parseCommand(prefix, line string) (Stmt, error) {
+	if prefix != "" {
+		return nil, fmt.Errorf("invalid command prefix: `%s`", prefix)
+	}
 	cmd := strings.TrimSpace(line)
 	if cmd == "" {
 		return nil, fmt.Errorf("unexpected empty command")
 	}
 	return CommandStmt{Cmd: cmd}, nil
+}
+
+func parseInput(prefix, line string) (Stmt, error) {
+	if prefix != "" {
+		return nil, fmt.Errorf("invalid data prefix: `%s`", prefix)
+	}
+	return DataStmt{FD: Stdin, Content: line}, nil
+}
+
+func parseOutput(prefix, line string) (Stmt, error) {
+	fd := Stdout
+	if prefix == "2" {
+		fd = Stderr
+	} else if prefix != "" {
+		return nil, fmt.Errorf("invalid data prefix: `%s`", prefix)
+	}
+	return DataStmt{FD: fd, Content: line}, nil
 }
