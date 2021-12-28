@@ -23,15 +23,12 @@ $ cat test
 # In-between comment
 
 # Read a file that doesn't exist
-$ cat unknown
+1$ cat unknown
 2>cat: unknown: No such file or directory
 
-$ read input
+$ cat -n
 <Input content
-
-$ ls
->total 8
->-rw-r--r--  1 mickael     6B Dec 28 10:16 test
+>     1	Input content
 `
 	script, err := ParseScript(content)
 	if err != nil {

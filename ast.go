@@ -85,20 +85,12 @@ func (n DataNode) IsEmpty() bool {
 }
 
 func (n DataNode) Dump() string {
-	if n.IsEmpty() {
-		return ""
-	} else {
-		return n.Content + "\n"
-	}
+	return n.Content
 }
 
 func (n DataNode) Append(line DataLine) DataNode {
-	content := n.Content
-	if content != "" {
-		content += "\n"
-	}
 	return DataNode{
-		Content: content + line.Content,
+		Content: n.Content + line.Content,
 	}
 }
 
@@ -153,7 +145,7 @@ func (s DataLine) Merge(other Line) (Line, bool) {
 	if other, ok := other.(DataLine); ok && s.FD == other.FD {
 		return DataLine{
 			FD:      s.FD,
-			Content: s.Content + "\n" + other.Content,
+			Content: s.Content + other.Content,
 		}, true
 	} else {
 		return s, false

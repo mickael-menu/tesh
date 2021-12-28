@@ -154,7 +154,7 @@ func parseInput(prefix, line string) (Line, error) {
 	if prefix != "" {
 		return nil, fmt.Errorf("invalid data prefix: `%s`", prefix)
 	}
-	return DataLine{FD: Stdin, Content: line}, nil
+	return parseDataLine(line, Stdin), nil
 }
 
 func parseOutput(prefix, line string) (Line, error) {
@@ -164,5 +164,14 @@ func parseOutput(prefix, line string) (Line, error) {
 	} else if prefix != "" {
 		return nil, fmt.Errorf("invalid data prefix: `%s`", prefix)
 	}
-	return DataLine{FD: fd, Content: line}, nil
+	return parseDataLine(line, fd), nil
+}
+
+func parseDataLine(line string, fd FD) DataLine {
+	if strings.HasSuffix(line, "\\") {
+		line = strings.TrimSuffix(line, "\\")
+	} else {
+		line += "\n"
+	}
+	return DataLine{FD: fd, Content: line}
 }
