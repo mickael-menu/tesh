@@ -7,7 +7,11 @@ import (
 )
 
 func TestParseEmpty(t *testing.T) {
-	testParse(t, "   \n  \n", []Stmt{})
+	testParse(t, "   ", []Stmt{BlankStmt{}})
+}
+
+func TestParseBlank(t *testing.T) {
+	testParse(t, "\n\n", []Stmt{BlankStmt{}})
 }
 
 func TestParseComment(t *testing.T) {
@@ -43,8 +47,7 @@ func TestParseEmptyCommand(t *testing.T) {
 }
 
 func TestParseMultipleCommands(t *testing.T) {
-	testParse(t, `
-$  echo "hello world"
+	testParse(t, `$  echo "hello world"
   $zk list --link-to test.md
 `, []Stmt{
 		CommandStmt{Cmd: `echo "hello world"`},
@@ -69,8 +72,7 @@ func TestParseEmptyStdin(t *testing.T) {
 }
 
 func TestParseMultipleStdin(t *testing.T) {
-	testParse(t, `
-	<  Input sent to a program 
+	testParse(t, `	<  Input sent to a program 
 <	
 < which spans
 <several lines    
@@ -78,6 +80,7 @@ func TestParseMultipleStdin(t *testing.T) {
 <Another one
 `, []Stmt{
 		DataStmt{FD: Stdin, Content: "  Input sent to a program \n	\n which spans\nseveral lines    "},
+		BlankStmt{},
 		DataStmt{FD: Stdin, Content: "Another one"},
 	})
 }
@@ -99,8 +102,7 @@ func TestParseEmptyStdout(t *testing.T) {
 }
 
 func TestParseMultipleStdout(t *testing.T) {
-	testParse(t, `
-	>  Output from a program 
+	testParse(t, `	>  Output from a program 
 >	
 > which spans
 >several lines    
@@ -108,6 +110,7 @@ func TestParseMultipleStdout(t *testing.T) {
 >Another one
 `, []Stmt{
 		DataStmt{FD: Stdout, Content: "  Output from a program \n	\n which spans\nseveral lines    "},
+		BlankStmt{},
 		DataStmt{FD: Stdout, Content: "Another one"},
 	})
 }
@@ -129,8 +132,7 @@ func TestParseEmptyStderr(t *testing.T) {
 }
 
 func TestParseMultipleStderr(t *testing.T) {
-	testParse(t, `
-	2>  Error from a program 
+	testParse(t, `	2>  Error from a program 
 2>	
 2> which spans
 2>several lines    
@@ -138,13 +140,13 @@ func TestParseMultipleStderr(t *testing.T) {
 2>Another one
 `, []Stmt{
 		DataStmt{FD: Stderr, Content: "  Error from a program \n	\n which spans\nseveral lines    "},
+		BlankStmt{},
 		DataStmt{FD: Stderr, Content: "Another one"},
 	})
 }
 
 func TestParseCompleteExample(t *testing.T) {
-	testParse(t, `
-# Create a file
+	testParse(t, `# Create a file
 $ echo "hello" > test
 
 # Read the created file
@@ -164,14 +166,18 @@ $ ls
 `, []Stmt{
 		CommentStmt{Content: "Create a file"},
 		CommandStmt{Cmd: `echo "hello" > test`},
+		BlankStmt{},
 		CommentStmt{Content: "Read the created file"},
 		CommandStmt{Cmd: "cat test"},
 		DataStmt{FD: Stdout, Content: "hello"},
+		BlankStmt{},
 		CommentStmt{Content: "Read a file that doesn't exist"},
 		CommandStmt{Cmd: "cat unknown"},
 		DataStmt{FD: Stderr, Content: "cat: unknown: No such file or directory"},
+		BlankStmt{},
 		CommandStmt{Cmd: "read input"},
 		DataStmt{FD: Stdin, Content: "Input content"},
+		BlankStmt{},
 		CommandStmt{Cmd: "ls"},
 		DataStmt{FD: Stdout, Content: "total 8\n-rw-r--r--  1 mickael     6B Dec 28 10:16 test"},
 	})
