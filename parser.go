@@ -55,6 +55,9 @@ func ParseScript(content string) (ScriptNode, error) {
 			case Stderr:
 				cmd.Stderr = cmd.Stderr.Append(line)
 			}
+
+		default:
+			panic(fmt.Sprintf("unknown Line statement: %+v", line))
 		}
 	}
 

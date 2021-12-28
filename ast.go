@@ -50,22 +50,27 @@ func (n CommandNode) IsEmpty() bool {
 	return n.Cmd == ""
 }
 
+func (n CommandNode) DumpShort() string {
+	if n.IsEmpty() {
+		return ""
+	}
+	return fmt.Sprintf("%s$ %s\n", n.Comment.Dump(), n.Cmd)
+}
+
 func (n CommandNode) Dump() string {
 	if n.IsEmpty() {
 		return ""
 	}
-	out := fmt.Sprintf("%s$ %s\n", n.Comment.Dump(), n.Cmd)
-	stdin := n.Stdin.Dump()
-	if stdin != "" {
-		out += "< " + stdin
+
+	out := n.DumpShort()
+	if !n.Stdin.IsEmpty() {
+		out += "< " + n.Stdin.Dump()
 	}
-	stdout := n.Stdout.Dump()
-	if stdout != "" {
-		out += "< " + stdout
+	if !n.Stdout.IsEmpty() {
+		out += "< " + n.Stdout.Dump()
 	}
-	stderr := n.Stderr.Dump()
-	if stderr != "" {
-		out += "2> " + stderr
+	if !n.Stderr.IsEmpty() {
+		out += "< " + n.Stderr.Dump()
 	}
 	return out
 }
@@ -79,7 +84,11 @@ func (n DataNode) IsEmpty() bool {
 }
 
 func (n DataNode) Dump() string {
-	return n.Content + "\n"
+	if n.IsEmpty() {
+		return ""
+	} else {
+		return n.Content + "\n"
+	}
 }
 
 func (n DataNode) Append(line DataLine) DataNode {
