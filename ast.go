@@ -136,6 +136,19 @@ const (
 	Stderr FD = 2
 )
 
+func (fd FD) String() string {
+	switch fd {
+	case Stdin:
+		return "stdin"
+	case Stdout:
+		return "stdout"
+	case Stderr:
+		return "stderr"
+	default:
+		return fmt.Sprintf("%d", fd)
+	}
+}
+
 type DataLine struct {
 	FD      FD
 	Content string
