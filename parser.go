@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -31,8 +32,9 @@ func ParseScript(content string) (ScriptNode, error) {
 
 		case CommandLine:
 			cmd = &CommandNode{
-				Cmd:     line.Cmd,
-				Comment: comment,
+				Cmd:      line.Cmd,
+				ExitCode: line.ExitCode,
+				Comment:  comment,
 			}
 			script.Nodes = append(script.Nodes, cmd)
 			comment = CommentNode{}
@@ -130,14 +132,22 @@ func parseComment(prefix, line string) (Line, error) {
 }
 
 func parseCommand(prefix, line string) (Line, error) {
+	exitCode := 0
 	if prefix != "" {
-		return nil, fmt.Errorf("invalid command prefix: `%s`", prefix)
+		var err error
+		exitCode, err = strconv.Atoi(prefix)
+		if err != nil {
+			return nil, fmt.Errorf("invalid command prefix: `%s`", prefix)
+		}
 	}
 	cmd := strings.TrimSpace(line)
 	if cmd == "" {
 		return nil, fmt.Errorf("unexpected empty command")
 	}
-	return CommandLine{Cmd: cmd}, nil
+	return CommandLine{
+		Cmd:      cmd,
+		ExitCode: exitCode,
+	}, nil
 }
 
 func parseInput(prefix, line string) (Line, error) {

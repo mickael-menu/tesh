@@ -45,9 +45,17 @@ func runCmd(node CommandNode) error {
 	err := cmd.Run()
 	if err != nil {
 		if err, ok := err.(*exec.ExitError); ok {
-			return fmt.Errorf("command exited with status %d", err.ExitCode())
+			status := err.ExitCode()
+			if status != node.ExitCode {
+				fmt.Println(string(err.Stderr))
+				return fmt.Errorf("command exited with status %d, but expected %d", status, node.ExitCode)
+			}
 		} else {
 			return err
+		}
+	} else {
+		if node.ExitCode != 0 {
+			return fmt.Errorf("command exited with status 0, but expected %d", node.ExitCode)
 		}
 	}
 

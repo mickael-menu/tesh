@@ -39,11 +39,12 @@ func (n CommentNode) Dump() string {
 }
 
 type CommandNode struct {
-	Comment CommentNode
-	Cmd     string
-	Stdin   DataNode
-	Stdout  DataNode
-	Stderr  DataNode
+	Comment  CommentNode
+	Cmd      string
+	ExitCode int
+	Stdin    DataNode
+	Stdout   DataNode
+	Stderr   DataNode
 }
 
 func (n CommandNode) IsEmpty() bool {
@@ -127,7 +128,8 @@ func (s CommentLine) Merge(other Line) (Line, bool) {
 }
 
 type CommandLine struct {
-	Cmd string
+	Cmd      string
+	ExitCode int
 }
 
 func (s CommandLine) Merge(other Line) (Line, bool) {

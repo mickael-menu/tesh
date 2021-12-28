@@ -25,7 +25,7 @@ $ cat test
 # In-between comment
 
 # Read a file that doesn't exist
-$ cat unknown
+1$ cat unknown
 2>cat: unknown: No such file or directory
 
 $ read input
@@ -47,9 +47,10 @@ $ ls
 		},
 		CommentNode{Content: "In-between comment"},
 		&CommandNode{
-			Comment: CommentNode{Content: "Read a file that doesn't exist"},
-			Cmd:     "cat unknown",
-			Stderr:  DataNode{Content: "cat: unknown: No such file or directory"},
+			Comment:  CommentNode{Content: "Read a file that doesn't exist"},
+			Cmd:      "cat unknown",
+			ExitCode: 1,
+			Stderr:   DataNode{Content: "cat: unknown: No such file or directory"},
 		},
 		&CommandNode{
 			Cmd:   "read input",
@@ -123,6 +124,13 @@ func TestParseLinesMultipleCommands(t *testing.T) {
 `, []Line{
 		CommandLine{Cmd: `echo "hello world"`},
 		CommandLine{Cmd: `zk list --link-to test.md`},
+	})
+}
+
+func TestParseLinesCommandWithExitStatus(t *testing.T) {
+	testParseLines(t, "1$  cmd1\n255$cmd2", []Line{
+		CommandLine{Cmd: "cmd1", ExitCode: 1},
+		CommandLine{Cmd: "cmd2", ExitCode: 255},
 	})
 }
 
@@ -225,7 +233,7 @@ $ cat test
 >hello
 
 # Read a file that doesn't exist
-$ cat unknown
+1$ cat unknown
 2>cat: unknown: No such file or directory
 
 $ read input
@@ -243,7 +251,7 @@ $ ls
 		DataLine{FD: Stdout, Content: "hello"},
 		BlankLine{},
 		CommentLine{Content: "Read a file that doesn't exist"},
-		CommandLine{Cmd: "cat unknown"},
+		CommandLine{Cmd: "cat unknown", ExitCode: 1},
 		DataLine{FD: Stderr, Content: "cat: unknown: No such file or directory"},
 		BlankLine{},
 		CommandLine{Cmd: "read input"},
