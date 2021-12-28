@@ -10,15 +10,15 @@ func TestParseEmpty(t *testing.T) {
 	testParse(t, "   \n  \n", []Stmt{})
 }
 
-func TestParseEmptyComment(t *testing.T) {
-	testParse(t, "#", []Stmt{
-		CommentStmt{Content: ""},
-	})
-}
-
 func TestParseComment(t *testing.T) {
 	testParse(t, "# Comment on one line", []Stmt{
 		CommentStmt{Content: "Comment on one line"},
+	})
+}
+
+func TestParseEmptyComment(t *testing.T) {
+	testParse(t, "#", []Stmt{
+		CommentStmt{Content: ""},
 	})
 }
 
@@ -48,22 +48,55 @@ $  echo "hello world"
 	})
 }
 
+func TestParseStdin(t *testing.T) {
+	testParse(t, " <  Input sent to the program ", []Stmt{
+		DataStmt{FD: Stdin, Content: "  Input sent to the program "},
+	})
+}
+
+func TestParseEmptyStdin(t *testing.T) {
+	testParse(t, "	<", []Stmt{
+		DataStmt{FD: Stdin, Content: ""},
+	})
+}
+
+func TestParseMultipleStdin(t *testing.T) {
+	testParse(t, `
+	<  Input sent to a program 
+<	
+< which spans
+<several lines    
+
+<Another one
+`, []Stmt{
+		DataStmt{FD: Stdin, Content: "  Input sent to a program \n	\n which spans\nseveral lines    "},
+		DataStmt{FD: Stdin, Content: "Another one"},
+	})
+}
+
 func TestParseStdout(t *testing.T) {
 	testParse(t, " >  Output from a program ", []Stmt{
-		DataStmt{FD: 1, Content: "  Output from a program "},
+		DataStmt{FD: Stdout, Content: "  Output from a program "},
+	})
+}
+
+func TestParseEmptyStdout(t *testing.T) {
+	testParse(t, "	>", []Stmt{
+		DataStmt{FD: Stdout, Content: ""},
 	})
 }
 
 func TestParseMultipleStdout(t *testing.T) {
 	testParse(t, `
 	>  Output from a program 
+>	
 > which spans
 >several lines    
 
 >Another one
 `, []Stmt{
-		DataStmt{FD: 1, Content: "  Output from a program \n which spans\nseveral lines    "},
-		DataStmt{FD: 1, Content: "Another one"},
+		DataStmt{FD: Stdout, Content: "  Output from a program \n	\n which spans\nseveral lines    "},
+		DataStmt{FD: Stdout, Content: "Another one"},
 	})
 }
 

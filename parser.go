@@ -33,12 +33,16 @@ func (s CommandStmt) Merge(other Stmt) (Stmt, bool) {
 	return s, false
 }
 
+type FD int
+
+const (
+	Stdin  FD = 0
+	Stdout FD = 1
+	Stderr FD = 2
+)
+
 type DataStmt struct {
-	// File descriptor
-	// 0 = stdin
-	// 1 = stdout
-	// 2 = stderr
-	FD      int
+	FD      FD
 	Content string
 }
 
@@ -99,7 +103,9 @@ func parseLine(line string) (Stmt, error) {
 		case '$':
 			return parseCommand(line[i+1:])
 		case '>':
-			return DataStmt{FD: 1, Content: line[i+1:]}, nil
+			return DataStmt{FD: Stdout, Content: line[i+1:]}, nil
+		case '<':
+			return DataStmt{FD: Stdin, Content: line[i+1:]}, nil
 		}
 	}
 
