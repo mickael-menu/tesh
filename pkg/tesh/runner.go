@@ -3,9 +3,13 @@ package tesh
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+
+	"github.com/mickael-menu/tesh/pkg/internal/util/errors"
 )
 
 type RunCallbacks struct {
@@ -58,13 +62,63 @@ func RunSuite(suite TestSuiteNode, config RunConfig) (RunReport, error) {
 	}
 
 	for _, test := range suite.Tests {
-		err := RunTest(test, config)
+		wd, err := setupTempWorkingDir(test.Name, config.WorkingDir)
+		if err != nil {
+			return report, err
+		}
+		defer os.RemoveAll(wd)
+		testConfig := config
+		testConfig.WorkingDir = wd
+
+		err = RunTest(test, testConfig)
 		if err != nil {
 			report.FailedCount += 1
 		}
 	}
 
 	return report, nil
+}
+
+func setupTempWorkingDir(name string, sourceDir string) (string, error) {
+	targetDir, err := ioutil.TempDir("", strings.ReplaceAll(name, "/", "-")+"-*")
+	if err != nil {
+		return "", err
+	}
+	if sourceDir == "" {
+		return targetDir, nil
+	}
+
+	err = filepath.Walk(sourceDir, func(sourcePath string, info os.FileInfo, err error) error {
+		if sourcePath == sourceDir {
+			return nil
+		}
+
+		wrap := errors.Wrapperf("walk %s", sourcePath)
+		if err != nil {
+			return wrap(err)
+		}
+		sourceName, err := filepath.Rel(sourceDir, sourcePath)
+		if err != nil {
+			return wrap(err)
+		}
+		targetPath := filepath.Join(targetDir, sourceName)
+
+		if info.IsDir() {
+			return wrap(os.Mkdir(targetPath, os.ModePerm))
+		} else {
+			sourceData, err := ioutil.ReadFile(sourcePath)
+			if err != nil {
+				return wrap(err)
+			}
+			err = ioutil.WriteFile(targetPath, sourceData, os.ModePerm)
+			if err != nil {
+				return wrap(err)
+			}
+		}
+		return nil
+	})
+
+	return targetDir, err
 }
 
 func RunTest(test TestNode, config RunConfig) error {
@@ -74,7 +128,7 @@ func RunTest(test TestNode, config RunConfig) error {
 		callbacks.OnStartTest(test)
 	}
 
-	var wd string
+	wd := config.WorkingDir
 	var err error
 
 loop:
