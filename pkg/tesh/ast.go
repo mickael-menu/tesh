@@ -1,4 +1,4 @@
-package main
+package tesh
 
 import "fmt"
 
@@ -7,17 +7,34 @@ type Node interface {
 	Dump() string
 }
 
-type ScriptNode struct {
-	Nodes []Node
+type TestSuiteNode struct {
+	Tests []TestNode
 }
 
-func (n ScriptNode) IsEmpty() bool {
-	return len(n.Nodes) == 0
+func (n TestSuiteNode) IsEmpty() bool {
+	return len(n.Tests) == 0
 }
 
-func (n ScriptNode) Dump() string {
+func (n TestSuiteNode) Dump() string {
 	out := ""
-	for _, node := range n.Nodes {
+	for _, test := range n.Tests {
+		out += test.Name + ":\n" + test.Dump()
+	}
+	return out
+}
+
+type TestNode struct {
+	Name     string
+	Children []Node
+}
+
+func (n TestNode) IsEmpty() bool {
+	return len(n.Children) == 0
+}
+
+func (n TestNode) Dump() string {
+	out := ""
+	for _, node := range n.Children {
 		out += node.Dump()
 	}
 	return out

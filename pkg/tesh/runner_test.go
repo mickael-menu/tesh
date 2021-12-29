@@ -1,9 +1,9 @@
-package main
+package tesh
 
 import (
 	"testing"
 
-	"github.com/mickael-menu/tesh/internal/util/test/assert"
+	"github.com/mickael-menu/tesh/pkg/internal/util/test/assert"
 )
 
 func TestRunEmpty(t *testing.T) {
@@ -75,15 +75,15 @@ func TestRunFailureExitCode(t *testing.T) {
 }
 
 func testRun(t *testing.T, content string) {
-	script, err := ParseScript(content)
+	test, err := ParseTest(content)
 	assert.Nil(t, err)
-	err = Run(script, RunCallbacks{})
+	err = RunTest(test, RunConfig{})
 	assert.Nil(t, err)
 }
 
 func testRunErr(t *testing.T, content string, expected error) {
-	script, err := ParseScript(content)
+	test, err := ParseTest(content)
 	assert.Nil(t, err)
-	err = Run(script, RunCallbacks{})
+	err = RunTest(test, RunConfig{})
 	assert.Equal(t, err, expected)
 }
