@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,24 +10,36 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		exit("missing input folder")
-	}
 	var err error
+
+	var update bool
+	flag.BoolVar(&update, "u", false, "overwrite test cases instead of failing")
+	flag.Parse()
+
+	values := flag.Args()
+
+	if len(values) == 0 {
+		fmt.Println("usage: tesh [-u] <tests> [<working-dir>]")
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	testsDir := values[0]
 	wd := ""
-	if len(os.Args) >= 3 {
-		wd, err = filepath.Abs(os.Args[2])
+	if len(values) >= 2 {
+		wd, err = filepath.Abs(values[1])
 		exitIfErr(err)
 	}
 
-	suite, err := tesh.ParseSuite(os.Args[1])
+	suite, err := tesh.ParseSuite(testsDir)
 	exitIfErr(err)
 	report, err := tesh.RunSuite(suite, tesh.RunConfig{
+		Update:     update,
 		WorkingDir: wd,
 		Callbacks: tesh.RunCallbacks{
 			OnFinishCommand: func(test tesh.TestNode, cmd tesh.CommandNode, wd string, err error) {
 				if err != nil {
-					fmt.Printf("%s:\n%s%s\n\n", test.Name, cmd.DumpShort(), err)
+					fmt.Printf("%s:\n$ %s\n%s\n\n", test.Name, cmd.Cmd, err)
 				}
 			},
 		},
@@ -34,6 +47,8 @@ func main() {
 	exitIfErr(err)
 	if report.FailedCount == 0 {
 		fmt.Printf("PASSED %d tests\n", report.TotalCount)
+	} else if update {
+		fmt.Printf("UPDATED %d/%d tests\n", report.FailedCount, report.TotalCount)
 	} else {
 		fmt.Printf("FAILED %d/%d tests\n", report.FailedCount, report.TotalCount)
 		os.Exit(1)

@@ -1,6 +1,11 @@
 package tesh
 
-import "fmt"
+import (
+	"fmt"
+	"io/ioutil"
+	"os"
+	"strings"
+)
 
 type Node interface {
 	IsEmpty() bool
@@ -25,6 +30,7 @@ func (n TestSuiteNode) Dump() string {
 
 type TestNode struct {
 	Name     string
+	Path     string
 	Children []Node
 }
 
@@ -35,9 +41,31 @@ func (n TestNode) IsEmpty() bool {
 func (n TestNode) Dump() string {
 	out := ""
 	for _, node := range n.Children {
-		out += node.Dump()
+		switch node := node.(type) {
+		case CommentNode:
+			out += node.Dump() + "\n"
+		case *CommandNode:
+			out += node.Dump() + "\n"
+
+		default:
+			panic(fmt.Sprintf("unknown test Node: %s", node.Dump()))
+		}
 	}
+
 	return out
+}
+
+func (n TestNode) Write() error {
+	if n.Path == "" {
+		return fmt.Errorf("writing a test requires a path")
+	}
+
+	return ioutil.WriteFile(n.Path, []byte(n.Dump()), os.ModePerm)
+}
+
+func prefixLines(content string, prefix string) string {
+	lines := strings.Split(strings.TrimSuffix(content, "\n"), "\n")
+	return prefix + strings.Join(lines, "\n"+prefix)
 }
 
 type CommentNode struct {
@@ -52,7 +80,7 @@ func (n CommentNode) Dump() string {
 	if n.IsEmpty() {
 		return ""
 	}
-	return "# " + n.Content + "\n"
+	return prefixLines(n.Content, "# ") + "\n"
 }
 
 type CommandNode struct {
@@ -68,28 +96,30 @@ func (n CommandNode) IsEmpty() bool {
 	return n.Cmd == ""
 }
 
-func (n CommandNode) DumpShort() string {
-	if n.IsEmpty() {
-		return ""
-	}
-	return fmt.Sprintf("%s$ %s\n", n.Comment.Dump(), n.Cmd)
-}
-
 func (n CommandNode) Dump() string {
 	if n.IsEmpty() {
 		return ""
 	}
 
-	out := n.DumpShort()
+	out := ""
+	if !n.Comment.IsEmpty() {
+		out += n.Comment.Dump()
+	}
+
+	if n.ExitCode != 0 {
+		out += fmt.Sprint(n.ExitCode)
+	}
+	out += "$ " + n.Cmd + "\n"
 	if !n.Stdin.IsEmpty() {
-		out += "< " + n.Stdin.Dump()
+		out += prefixLines(n.Stdin.Content, "<") + "\n"
 	}
 	if !n.Stdout.IsEmpty() {
-		out += "< " + n.Stdout.Dump()
+		out += prefixLines(n.Stdout.Content, ">") + "\n"
 	}
 	if !n.Stderr.IsEmpty() {
-		out += "< " + n.Stderr.Dump()
+		out += prefixLines(n.Stderr.Content, "2>") + "\n"
 	}
+
 	return out
 }
 

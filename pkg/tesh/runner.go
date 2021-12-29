@@ -47,6 +47,8 @@ func (e DataAssertError) Error() string {
 }
 
 type RunConfig struct {
+	// When true, will overwrite the test to make them pass.
+	Update     bool
 	WorkingDir string
 	Callbacks  RunCallbacks
 }
@@ -128,6 +130,7 @@ func RunTest(test TestNode, config RunConfig) error {
 		callbacks.OnStartTest(test)
 	}
 
+	hasChanges := false
 	wd := config.WorkingDir
 	var err error
 
@@ -142,7 +145,7 @@ loop:
 			if callbacks.OnStartCommand != nil {
 				callbacks.OnStartCommand(test, *node, wd)
 			}
-			wd, err = runCmd(*node, wd)
+			wd, err = runCmd(node, wd, config.Update, &hasChanges)
 			if callbacks.OnFinishCommand != nil {
 				callbacks.OnFinishCommand(test, *node, wd, err)
 			}
@@ -150,17 +153,21 @@ loop:
 				break loop
 			}
 		default:
-			panic(fmt.Sprintf("unknown script Node: %s", node.Dump()))
+			panic(fmt.Sprintf("unknown test Node: %s", node.Dump()))
 		}
 	}
 	if callbacks.OnFinishTest != nil {
 		callbacks.OnFinishTest(test, err)
 	}
 
+	if hasChanges && config.Update {
+		err = test.Write()
+	}
+
 	return err
 }
 
-func runCmd(node CommandNode, wd string) (string, error) {
+func runCmd(node *CommandNode, wd string, update bool, hasChanges *bool) (string, error) {
 	if node.IsEmpty() {
 		return wd, fmt.Errorf("unexpected empty command")
 	}
@@ -170,13 +177,31 @@ func runCmd(node CommandNode, wd string) (string, error) {
 	if !node.Stdin.IsEmpty() {
 		cmd.Stdin = strings.NewReader(node.Stdin.Content)
 	}
-	// cmd.Env = []string{"PATH=/bin:" + os.Getenv("PATH")}
+	if wd != "" {
+		cmd.Env = []string{"PATH=" + wd + ":" + os.Getenv("PATH")}
+	}
 	var stdoutBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	var stderrBuf bytes.Buffer
 	cmd.Stderr = &stderrBuf
 
 	err := cmd.Run()
+
+	stderr := string(stderrBuf.Bytes())
+	stderr = strings.TrimLeft(stderr, "\r")
+	expectedStderr := node.Stderr.Dump()
+	if stderr != expectedStderr {
+		if update {
+			node.Stderr.Content = stderr
+			*hasChanges = true
+		} else {
+			return wd, DataAssertError{
+				FD:       Stderr,
+				Received: stderr,
+				Expected: expectedStderr,
+			}
+		}
+	}
 
 	stdout := string(stdoutBuf.Bytes())
 	// Sometimes some garbage \r is prepended to stdout/stderr.
@@ -186,21 +211,15 @@ func runCmd(node CommandNode, wd string) (string, error) {
 	stdout = strings.TrimSuffix(stdout, wd)
 	expectedStdout := node.Stdout.Dump()
 	if stdout != expectedStdout {
-		return wd, DataAssertError{
-			FD:       Stdout,
-			Received: stdout,
-			Expected: expectedStdout,
-		}
-	}
-
-	stderr := string(stderrBuf.Bytes())
-	stderr = strings.TrimLeft(stderr, "\r")
-	expectedStderr := node.Stderr.Dump()
-	if stderr != expectedStderr {
-		return wd, DataAssertError{
-			FD:       Stderr,
-			Received: stderr,
-			Expected: expectedStderr,
+		if update {
+			node.Stdout.Content = stdout
+			*hasChanges = true
+		} else {
+			return wd, DataAssertError{
+				FD:       Stdout,
+				Received: stdout,
+				Expected: expectedStdout,
+			}
 		}
 	}
 
@@ -208,10 +227,15 @@ func runCmd(node CommandNode, wd string) (string, error) {
 		if err, ok := err.(*exec.ExitError); ok {
 			status := err.ExitCode()
 			if status != node.ExitCode {
-				return wd, ExitCodeAssertError{
-					Received: status,
-					Expected: node.ExitCode,
-					Stderr:   string(err.Stderr),
+				if update {
+					node.ExitCode = status
+					*hasChanges = true
+				} else {
+					return wd, ExitCodeAssertError{
+						Received: status,
+						Expected: node.ExitCode,
+						Stderr:   string(err.Stderr),
+					}
 				}
 			}
 		} else {
@@ -219,9 +243,14 @@ func runCmd(node CommandNode, wd string) (string, error) {
 		}
 	} else {
 		if node.ExitCode != 0 {
-			return wd, ExitCodeAssertError{
-				Received: 0,
-				Expected: node.ExitCode,
+			if update {
+				node.ExitCode = 0
+				*hasChanges = true
+			} else {
+				return wd, ExitCodeAssertError{
+					Received: 0,
+					Expected: node.ExitCode,
+				}
 			}
 		}
 	}
