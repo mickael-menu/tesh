@@ -34,7 +34,7 @@ type DataAssertError struct {
 }
 
 func (e DataAssertError) Error() string {
-	return fmt.Sprintf("expected on %s: %s got: %s", e.FD.String(), e.Expected, e.Received)
+	return fmt.Sprintf("expected on %s: <%v> got: <%v>", e.FD.String(), []byte(e.Expected), []byte(e.Received))
 }
 
 func Run(script ScriptNode, callbacks RunCallbacks) error {
@@ -114,6 +114,8 @@ func runCmd(node CommandNode, wd string) (string, error) {
 	}
 
 	stdout := string(stdoutBuf.Bytes())
+	// Sometimes some garbage \r is prepended to stdout/stderr.
+	stdout = strings.TrimLeft(stdout, "\r")
 	stdout = strings.TrimRight(stdout, "\n")
 	wd = stdout[strings.LastIndex(stdout, "\n")+1:]
 	stdout = strings.TrimSuffix(stdout, wd)
@@ -127,6 +129,7 @@ func runCmd(node CommandNode, wd string) (string, error) {
 	}
 
 	stderr := string(stderrBuf.Bytes())
+	stderr = strings.TrimLeft(stderr, "\r")
 	expectedStderr := node.Stderr.Dump()
 	if stderr != expectedStderr {
 		return wd, DataAssertError{
