@@ -194,6 +194,17 @@ func runCmd(node *CommandNode, wd string, update bool, hasChanges *bool) (string
 		return wd, fmt.Errorf("unexpected empty command")
 	}
 
+	if strings.HasPrefix(node.Cmd, "cd ") {
+		path := strings.TrimPrefix(node.Cmd, "cd ")
+		return filepath.Join(wd, path), nil
+
+	} else {
+		err := runShellCmd(node, wd, update, hasChanges)
+		return wd, err
+	}
+}
+
+func runShellCmd(node *CommandNode, wd string, update bool, hasChanges *bool) error {
 	cmd := cmdFromString(node.Cmd)
 	cmd.Dir = wd
 	if !node.Stdin.IsEmpty() {
@@ -210,6 +221,7 @@ func runCmd(node *CommandNode, wd string, update bool, hasChanges *bool) (string
 	err := cmd.Run()
 
 	stderr := string(stderrBuf.Bytes())
+	// Sometimes some garbage \r is prepended to stdout/stderr.
 	stderr = strings.TrimLeft(stderr, "\r")
 	expectedStderr := node.Stderr.Dump()
 	if stderr != expectedStderr {
@@ -217,7 +229,7 @@ func runCmd(node *CommandNode, wd string, update bool, hasChanges *bool) (string
 			node.Stderr.Content = stderr
 			*hasChanges = true
 		} else {
-			return wd, DataAssertError{
+			return DataAssertError{
 				FD:       Stderr,
 				Received: stderr,
 				Expected: expectedStderr,
@@ -226,18 +238,14 @@ func runCmd(node *CommandNode, wd string, update bool, hasChanges *bool) (string
 	}
 
 	stdout := string(stdoutBuf.Bytes())
-	// Sometimes some garbage \r is prepended to stdout/stderr.
 	stdout = strings.TrimLeft(stdout, "\r")
-	stdout = strings.TrimRight(stdout, "\n")
-	wd = stdout[strings.LastIndex(stdout, "\n")+1:]
-	stdout = strings.TrimSuffix(stdout, wd)
 	expectedStdout := node.Stdout.Dump()
 	if stdout != expectedStdout {
 		if update {
 			node.Stdout.Content = stdout
 			*hasChanges = true
 		} else {
-			return wd, DataAssertError{
+			return DataAssertError{
 				FD:       Stdout,
 				Received: stdout,
 				Expected: expectedStdout,
@@ -253,7 +261,7 @@ func runCmd(node *CommandNode, wd string, update bool, hasChanges *bool) (string
 					node.ExitCode = status
 					*hasChanges = true
 				} else {
-					return wd, ExitCodeAssertError{
+					return ExitCodeAssertError{
 						Received: status,
 						Expected: node.ExitCode,
 						Stderr:   string(err.Stderr),
@@ -261,7 +269,7 @@ func runCmd(node *CommandNode, wd string, update bool, hasChanges *bool) (string
 				}
 			}
 		} else {
-			return wd, err
+			return err
 		}
 	} else {
 		if node.ExitCode != 0 {
@@ -269,7 +277,7 @@ func runCmd(node *CommandNode, wd string, update bool, hasChanges *bool) (string
 				node.ExitCode = 0
 				*hasChanges = true
 			} else {
-				return wd, ExitCodeAssertError{
+				return ExitCodeAssertError{
 					Received: 0,
 					Expected: node.ExitCode,
 				}
@@ -277,7 +285,7 @@ func runCmd(node *CommandNode, wd string, update bool, hasChanges *bool) (string
 		}
 	}
 
-	return wd, nil
+	return nil
 }
 
 func cmdFromString(command string, args ...string) *exec.Cmd {
@@ -285,6 +293,6 @@ func cmdFromString(command string, args ...string) *exec.Cmd {
 	if len(shell) == 0 {
 		shell = "sh"
 	}
-	args = append([]string{"-c", command + " && pwd", "--"}, args...)
+	args = append([]string{"-c", command, "--"}, args...)
 	return exec.Command(shell, args...)
 }
