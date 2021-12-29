@@ -1,15 +1,57 @@
-package main
+package tesh
 
 import (
 	"bufio"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"unicode"
 )
 
-func ParseScript(content string) (ScriptNode, error) {
-	script := ScriptNode{}
+func ParseSuite(rootDir string) (TestSuiteNode, error) {
+	var suite TestSuiteNode
+
+	err := filepath.Walk(rootDir, func(abs string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		path, err := filepath.Rel(rootDir, abs)
+		if err != nil {
+			return err
+		}
+		if filepath.Ext(path) != ".tesh" {
+			return nil
+		}
+
+		test, err := ParseTestFile(abs)
+		if err != nil {
+			return err
+		}
+
+		test.Name = path
+		suite.Tests = append(suite.Tests, test)
+		return nil
+	})
+
+	return suite, err
+}
+
+func ParseTestFile(path string) (TestNode, error) {
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return TestNode{}, err
+	}
+	return ParseTest(string(data))
+}
+
+func ParseTest(content string) (TestNode, error) {
+	script := TestNode{}
 	lines, err := parseLines(content)
 	if err != nil {
 		return script, err
@@ -20,7 +62,7 @@ func ParseScript(content string) (ScriptNode, error) {
 
 	flushComment := func() {
 		if !comment.IsEmpty() {
-			script.Nodes = append(script.Nodes, comment)
+			script.Children = append(script.Children, comment)
 			comment = CommentNode{}
 		}
 	}
@@ -36,7 +78,7 @@ func ParseScript(content string) (ScriptNode, error) {
 				ExitCode: line.ExitCode,
 				Comment:  comment,
 			}
-			script.Nodes = append(script.Nodes, cmd)
+			script.Children = append(script.Children, cmd)
 			comment = CommentNode{}
 
 		case CommentLine:

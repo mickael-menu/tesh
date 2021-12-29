@@ -1,13 +1,13 @@
-package main
+package tesh
 
 import (
 	"testing"
 
-	"github.com/mickael-menu/tesh/internal/util/test/assert"
+	"github.com/mickael-menu/tesh/pkg/internal/util/test/assert"
 )
 
 func TestParseScriptEmpty(t *testing.T) {
-	testParseScript(t, "   ", ScriptNode{})
+	testParseScript(t, "   ", TestNode{})
 }
 
 func TestParseScriptComplete(t *testing.T) {
@@ -32,7 +32,7 @@ $ cat test
 
 $ cat -n
 <Input content
->     1	Input content`, ScriptNode{Nodes: []Node{
+>     1	Input content`, TestNode{Children: []Node{
 		CommentNode{Content: "Script header"},
 		&CommandNode{
 			Comment: CommentNode{Content: "Create a file"},
@@ -66,14 +66,14 @@ func TestParseScriptRequireDataNodeUnderACommand(t *testing.T) {
 	testParseScriptErr(t, ">data", "unexpected data line before any command: `data\n`")
 }
 
-func testParseScript(t *testing.T, content string, expected ScriptNode) {
-	actual, err := ParseScript(content)
+func testParseScript(t *testing.T, content string, expected TestNode) {
+	actual, err := ParseTest(content)
 	assert.Nil(t, err)
 	assert.Equal(t, actual, expected)
 }
 
 func testParseScriptErr(t *testing.T, content string, msg string) {
-	_, err := ParseScript(content)
+	_, err := ParseTest(content)
 	assert.Err(t, err, msg)
 }
 
