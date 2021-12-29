@@ -45,12 +45,12 @@ func main() {
 		},
 	})
 	exitIfErr(err)
-	if report.FailedCount == 0 {
+	if update && report.UpdatedCount > 0 {
+		fmt.Printf("UPDATED %d on %d tests\n", report.UpdatedCount, report.TotalCount)
+	} else if report.FailedCount == 0 {
 		fmt.Printf("PASSED %d tests\n", report.TotalCount)
-	} else if update {
-		fmt.Printf("UPDATED %d/%d tests\n", report.FailedCount, report.TotalCount)
 	} else {
-		fmt.Printf("FAILED %d/%d tests\n", report.FailedCount, report.TotalCount)
+		fmt.Printf("FAILED %d on %d tests\n", report.FailedCount, report.TotalCount)
 		os.Exit(1)
 	}
 }

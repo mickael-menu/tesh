@@ -14,6 +14,7 @@ import (
 
 type RunCallbacks struct {
 	OnStartTest  func(test TestNode)
+	OnUpdateTest func(test TestNode)
 	OnFinishTest func(test TestNode, err error)
 
 	OnStartCommand  func(test TestNode, cmd CommandNode, wd string)
@@ -54,8 +55,9 @@ type RunConfig struct {
 }
 
 type RunReport struct {
-	FailedCount int
-	TotalCount  int
+	FailedCount  int
+	UpdatedCount int
+	TotalCount   int
 }
 
 func RunSuite(suite TestSuiteNode, config RunConfig) (RunReport, error) {
@@ -69,13 +71,27 @@ func RunSuite(suite TestSuiteNode, config RunConfig) (RunReport, error) {
 			return report, err
 		}
 		defer os.RemoveAll(wd)
+
 		testConfig := config
 		testConfig.WorkingDir = wd
 
-		err = RunTest(test, testConfig)
-		if err != nil {
-			report.FailedCount += 1
+		testConfig.Callbacks.OnFinishTest = func(test TestNode, err error) {
+			if config.Callbacks.OnFinishTest != nil {
+				config.Callbacks.OnFinishTest(test, err)
+			}
+			if err != nil {
+				report.FailedCount += 1
+			}
 		}
+
+		testConfig.Callbacks.OnUpdateTest = func(test TestNode) {
+			if config.Callbacks.OnUpdateTest != nil {
+				config.Callbacks.OnUpdateTest(test)
+			}
+			report.UpdatedCount += 1
+		}
+
+		_ = RunTest(test, testConfig)
 	}
 
 	return report, nil
@@ -130,9 +146,9 @@ func RunTest(test TestNode, config RunConfig) error {
 		callbacks.OnStartTest(test)
 	}
 
+	var err error
 	hasChanges := false
 	wd := config.WorkingDir
-	var err error
 
 loop:
 	for _, node := range test.Children {
@@ -162,6 +178,12 @@ loop:
 
 	if hasChanges && config.Update {
 		err = test.Write()
+		if err != nil {
+			return err
+		}
+		if callbacks.OnUpdateTest != nil {
+			callbacks.OnUpdateTest(test)
+		}
 	}
 
 	return err
