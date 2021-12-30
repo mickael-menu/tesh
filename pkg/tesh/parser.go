@@ -35,6 +35,7 @@ func ParseSuite(rootDir string) (TestSuiteNode, error) {
 		}
 
 		test.Name = path
+		test.Path = abs
 		suite.Tests = append(suite.Tests, test)
 		return nil
 	})
