@@ -119,6 +119,13 @@ $ echo "hello" 1>&2
 	})
 }
 
+func TestRunExpandShellCommand(t *testing.T) {
+	testRun(t, `
+$ echo "hello"
+>{{sh "echo 'hello'"}}
+	`)
+}
+
 func testRun(t *testing.T, content string) {
 	testRunConfig(t, content, RunConfig{})
 }

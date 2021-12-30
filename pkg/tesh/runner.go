@@ -10,7 +10,9 @@ import (
 	"strings"
 
 	"github.com/aymerick/raymond"
+	_ "github.com/mickael-menu/tesh/pkg/internal/handlebars"
 	"github.com/mickael-menu/tesh/pkg/internal/util/errors"
+	executil "github.com/mickael-menu/tesh/pkg/internal/util/exec"
 )
 
 type RunCallbacks struct {
@@ -18,8 +20,8 @@ type RunCallbacks struct {
 	OnUpdateTest func(test TestNode)
 	OnFinishTest func(test TestNode, err error)
 
-	OnStartCommand  func(test TestNode, cmd CommandNode, wd string)
-	OnFinishCommand func(test TestNode, cmd CommandNode, wd string, err error)
+	OnStartCommand  func(test TestNode, cmd CommandNode, config RunConfig)
+	OnFinishCommand func(test TestNode, cmd CommandNode, config RunConfig, err error)
 
 	OnComment func(test TestNode, comment string)
 }
@@ -150,7 +152,6 @@ func RunTest(test TestNode, config RunConfig) error {
 
 	var err error
 	hasChanges := false
-	wd := config.WorkingDir
 
 loop:
 	for _, node := range test.Children {
@@ -161,11 +162,11 @@ loop:
 			}
 		case *CommandNode:
 			if callbacks.OnStartCommand != nil {
-				callbacks.OnStartCommand(test, *node, wd)
+				callbacks.OnStartCommand(test, *node, config)
 			}
-			wd, err = runCmd(node, wd, config, &hasChanges)
+			config.WorkingDir, err = runCmd(node, config, &hasChanges)
 			if callbacks.OnFinishCommand != nil {
-				callbacks.OnFinishCommand(test, *node, wd, err)
+				callbacks.OnFinishCommand(test, *node, config, err)
 			}
 			if err != nil {
 				break loop
@@ -191,35 +192,35 @@ loop:
 	return err
 }
 
-func runCmd(node *CommandNode, wd string, config RunConfig, hasChanges *bool) (string, error) {
+func runCmd(node *CommandNode, config RunConfig, hasChanges *bool) (string, error) {
 	if node.IsEmpty() {
-		return wd, fmt.Errorf("unexpected empty command")
+		return config.WorkingDir, fmt.Errorf("unexpected empty command")
 	}
 
 	if strings.HasPrefix(node.Cmd, "cd ") {
 		path := strings.TrimPrefix(node.Cmd, "cd ")
 		path, err := expandString(path, config.Context)
-		return filepath.Join(wd, path), err
+		return filepath.Join(config.WorkingDir, path), err
 
 	} else {
-		err := runShellCmd(node, wd, config, hasChanges)
-		return wd, err
+		err := runShellCmd(node, config, hasChanges)
+		return config.WorkingDir, err
 	}
 }
 
-func runShellCmd(sourceNode *CommandNode, wd string, config RunConfig, hasChanges *bool) error {
+func runShellCmd(sourceNode *CommandNode, config RunConfig, hasChanges *bool) error {
 	node, err := expandNode(*sourceNode, config.Context)
 	if err != nil {
 		return err
 	}
 
-	cmd := cmdFromString(node.Cmd)
-	cmd.Dir = wd
+	cmd := executil.CommandFromString(node.Cmd)
+	cmd.Dir = config.WorkingDir
 	if !node.Stdin.IsEmpty() {
 		cmd.Stdin = strings.NewReader(node.Stdin.Content)
 	}
-	if wd != "" {
-		cmd.Env = []string{"PATH=" + wd + ":" + os.Getenv("PATH")}
+	if config.WorkingDir != "" {
+		cmd.Env = []string{"PATH=" + config.WorkingDir + ":" + os.Getenv("PATH")}
 	}
 	var stdoutBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
@@ -234,7 +235,7 @@ func runShellCmd(sourceNode *CommandNode, wd string, config RunConfig, hasChange
 	expectedStderr := node.Stderr.Dump()
 	if stderr != expectedStderr {
 		if config.Update {
-			node.Stderr.Content = stderr
+			sourceNode.Stderr.Content = stderr
 			*hasChanges = true
 		} else {
 			return DataAssertError{
@@ -250,7 +251,7 @@ func runShellCmd(sourceNode *CommandNode, wd string, config RunConfig, hasChange
 	expectedStdout := node.Stdout.Dump()
 	if stdout != expectedStdout {
 		if config.Update {
-			node.Stdout.Content = stdout
+			sourceNode.Stdout.Content = stdout
 			*hasChanges = true
 		} else {
 			return DataAssertError{
@@ -266,7 +267,7 @@ func runShellCmd(sourceNode *CommandNode, wd string, config RunConfig, hasChange
 			status := err.ExitCode()
 			if status != node.ExitCode {
 				if config.Update {
-					node.ExitCode = status
+					sourceNode.ExitCode = status
 					*hasChanges = true
 				} else {
 					return ExitCodeAssertError{
@@ -282,7 +283,7 @@ func runShellCmd(sourceNode *CommandNode, wd string, config RunConfig, hasChange
 	} else {
 		if node.ExitCode != 0 {
 			if config.Update {
-				node.ExitCode = 0
+				sourceNode.ExitCode = 0
 				*hasChanges = true
 			} else {
 				return ExitCodeAssertError{
@@ -294,15 +295,6 @@ func runShellCmd(sourceNode *CommandNode, wd string, config RunConfig, hasChange
 	}
 
 	return nil
-}
-
-func cmdFromString(command string, args ...string) *exec.Cmd {
-	shell := os.Getenv("SHELL")
-	if len(shell) == 0 {
-		shell = "sh"
-	}
-	args = append([]string{"-c", command, "--"}, args...)
-	return exec.Command(shell, args...)
 }
 
 func expandNode(node CommandNode, context map[string]interface{}) (CommandNode, error) {
