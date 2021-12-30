@@ -74,10 +74,59 @@ func TestRunFailureExitCode(t *testing.T) {
 	)
 }
 
+func TestRunExpandVariablesInCommands(t *testing.T) {
+	testRunConfig(t, `
+$ echo {{output}}
+>hello
+`, RunConfig{
+		Context: map[string]interface{}{
+			"output": "hello",
+		},
+	})
+}
+
+func TestRunExpandVariablesInStin(t *testing.T) {
+	testRunConfig(t, `
+$ cat -n
+<{{input}}
+>     1	hello
+`, RunConfig{
+		Context: map[string]interface{}{
+			"input": "hello",
+		},
+	})
+}
+
+func TestRunExpandVariablesInStdout(t *testing.T) {
+	testRunConfig(t, `
+$ echo "hello"
+>{{output}}
+`, RunConfig{
+		Context: map[string]interface{}{
+			"output": "hello",
+		},
+	})
+}
+
+func TestRunExpandVariablesInStderr(t *testing.T) {
+	testRunConfig(t, `
+$ echo "hello" 1>&2
+2>{{output}}
+`, RunConfig{
+		Context: map[string]interface{}{
+			"output": "hello",
+		},
+	})
+}
+
 func testRun(t *testing.T, content string) {
+	testRunConfig(t, content, RunConfig{})
+}
+
+func testRunConfig(t *testing.T, content string, config RunConfig) {
 	test, err := ParseTest(content)
 	assert.Nil(t, err)
-	err = RunTest(test, RunConfig{})
+	err = RunTest(test, config)
 	assert.Nil(t, err)
 }
 
