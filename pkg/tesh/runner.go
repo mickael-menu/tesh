@@ -7,9 +7,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/aymerick/raymond"
+	"github.com/mickael-menu/tesh/pkg/internal/handlebars"
 	_ "github.com/mickael-menu/tesh/pkg/internal/handlebars"
 	"github.com/mickael-menu/tesh/pkg/internal/util/errors"
 	executil "github.com/mickael-menu/tesh/pkg/internal/util/exec"
@@ -248,7 +250,11 @@ func runShellCmd(sourceNode *CommandNode, config RunConfig, hasChanges *bool) er
 	// Sometimes some garbage \r is prepended to stdout/stderr.
 	stderr = strings.TrimLeft(stderr, "\r")
 	expectedStderr := node.Stderr.Dump()
-	if stderr != expectedStderr {
+	matched, matchErr := matchString(stderr, expectedStderr)
+	if matchErr != nil {
+		return matchErr
+	}
+	if !matched {
 		if config.Update {
 			sourceNode.Stderr.Content = stderr
 			*hasChanges = true
@@ -256,7 +262,7 @@ func runShellCmd(sourceNode *CommandNode, config RunConfig, hasChanges *bool) er
 			return DataAssertError{
 				FD:       Stderr,
 				Received: stderr,
-				Expected: expectedStderr,
+				Expected: expandRegexes(expectedStderr),
 			}
 		}
 	}
@@ -264,7 +270,11 @@ func runShellCmd(sourceNode *CommandNode, config RunConfig, hasChanges *bool) er
 	stdout := string(stdoutBuf.Bytes())
 	stdout = strings.TrimLeft(stdout, "\r")
 	expectedStdout := node.Stdout.Dump()
-	if stdout != expectedStdout {
+	matched, matchErr = matchString(stdout, expectedStdout)
+	if matchErr != nil {
+		return matchErr
+	}
+	if !matched {
 		if config.Update {
 			sourceNode.Stdout.Content = stdout
 			*hasChanges = true
@@ -272,7 +282,7 @@ func runShellCmd(sourceNode *CommandNode, config RunConfig, hasChanges *bool) er
 			return DataAssertError{
 				FD:       Stdout,
 				Received: stdout,
-				Expected: expectedStdout,
+				Expected: expandRegexes(expectedStdout),
 			}
 		}
 	}
@@ -339,4 +349,21 @@ func expandString(s string, context map[string]interface{}) (string, error) {
 		return "", err
 	}
 	return tpl.Exec(context)
+}
+
+func matchString(actual string, expected string) (bool, error) {
+	if actual == "" && expected == "" {
+		return true, nil
+	}
+	expected = expandRegexes(expected)
+	reg, err := regexp.Compile(expected)
+	if err != nil {
+		return false, err
+	}
+	res := reg.Match([]byte(actual))
+	return res, nil
+}
+
+func expandRegexes(s string) string {
+	return handlebars.ExpandRegexes(regexp.QuoteMeta(s))
 }

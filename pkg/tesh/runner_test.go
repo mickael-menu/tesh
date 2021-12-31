@@ -126,6 +126,23 @@ $ echo "hello"
 	`)
 }
 
+func TestRunMatchRegex(t *testing.T) {
+	testRun(t, `
+$ echo "[h]ello"
+>[h]{{match "\w+"}}o
+	`)
+
+	testRunErr(t, `
+$ echo "[h]ello"
+>[h]{{match "\d+"}}o
+	`, DataAssertError{
+		FD:       Stdout,
+		Received: "[h]ello\n",
+		Expected: `\[h\]\d+o
+`,
+	})
+}
+
 func testRun(t *testing.T, content string) {
 	testRunConfig(t, content, RunConfig{})
 }
