@@ -74,10 +74,95 @@ func TestRunFailureExitCode(t *testing.T) {
 	)
 }
 
+func TestRunExpandVariablesInCommands(t *testing.T) {
+	testRunConfig(t, `
+$ echo {{output}}
+>hello
+`, RunConfig{
+		context: map[string]interface{}{
+			"output": "hello",
+		},
+	})
+}
+
+func TestRunExpandVariablesInStin(t *testing.T) {
+	testRunConfig(t, `
+$ cat -n
+<{{input}}
+>     1	hello
+`, RunConfig{
+		context: map[string]interface{}{
+			"input": "hello",
+		},
+	})
+}
+
+func TestRunExpandVariablesInStdout(t *testing.T) {
+	testRunConfig(t, `
+$ echo "hello"
+>{{output}}
+`, RunConfig{
+		context: map[string]interface{}{
+			"output": "hello",
+		},
+	})
+}
+
+func TestRunExpandVariablesInStderr(t *testing.T) {
+	testRunConfig(t, `
+$ echo "hello" 1>&2
+2>{{output}}
+`, RunConfig{
+		context: map[string]interface{}{
+			"output": "hello",
+		},
+	})
+}
+
+func TestRunExpandShellCommand(t *testing.T) {
+	testRun(t, `
+$ echo "hello"
+>{{sh "echo 'hello'"}}
+	`)
+}
+
+func TestRunMatchRegex(t *testing.T) {
+	testRun(t, `
+$ echo "[h]ello"
+>[h]{{match "\w+"}}o
+	`)
+
+	testRunErr(t, `
+$ echo "[h]ello"
+>[h]{{match "\d+"}}o
+	`, DataAssertError{
+		FD:       Stdout,
+		Received: "[h]ello\n",
+		Expected: `^\[h\]\d+o
+$`,
+	})
+}
+
+func TestRunMatchRegexSubstring(t *testing.T) {
+	testRunErr(t, `
+$ echo "[h]ello"
+>{{match "ell"}}
+	`, DataAssertError{
+		FD:       Stdout,
+		Received: "[h]ello\n",
+		Expected: `^ell
+$`,
+	})
+}
+
 func testRun(t *testing.T, content string) {
+	testRunConfig(t, content, RunConfig{})
+}
+
+func testRunConfig(t *testing.T, content string, config RunConfig) {
 	test, err := ParseTest(content)
 	assert.Nil(t, err)
-	err = RunTest(test, RunConfig{})
+	err = RunTest(test, config)
 	assert.Nil(t, err)
 }
 

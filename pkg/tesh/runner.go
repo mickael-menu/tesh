@@ -7,9 +7,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
+	"github.com/aymerick/raymond"
+	"github.com/mickael-menu/tesh/pkg/internal/handlebars"
+	_ "github.com/mickael-menu/tesh/pkg/internal/handlebars"
 	"github.com/mickael-menu/tesh/pkg/internal/util/errors"
+	executil "github.com/mickael-menu/tesh/pkg/internal/util/exec"
+	"github.com/mickael-menu/tesh/pkg/internal/util/paths"
 )
 
 type RunCallbacks struct {
@@ -17,8 +23,8 @@ type RunCallbacks struct {
 	OnUpdateTest func(test TestNode)
 	OnFinishTest func(test TestNode, err error)
 
-	OnStartCommand  func(test TestNode, cmd CommandNode, wd string)
-	OnFinishCommand func(test TestNode, cmd CommandNode, wd string, err error)
+	OnStartCommand  func(test TestNode, cmd CommandNode, config RunConfig)
+	OnFinishCommand func(test TestNode, cmd CommandNode, config RunConfig, err error)
 
 	OnComment func(test TestNode, comment string)
 }
@@ -52,6 +58,17 @@ type RunConfig struct {
 	Update     bool
 	WorkingDir string
 	Callbacks  RunCallbacks
+	context    map[string]interface{}
+}
+
+func (c RunConfig) Context() map[string]interface{} {
+	context := c.context
+	if context == nil {
+		context = map[string]interface{}{}
+	}
+
+	context["working-dir"] = c.WorkingDir
+	return context
 }
 
 type RunReport struct {
@@ -102,6 +119,10 @@ func setupTempWorkingDir(name string, sourceDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	targetDir, err = paths.Canonical(targetDir)
+	if err != nil {
+		return "", err
+	}
 	if sourceDir == "" {
 		return targetDir, nil
 	}
@@ -148,7 +169,6 @@ func RunTest(test TestNode, config RunConfig) error {
 
 	var err error
 	hasChanges := false
-	wd := config.WorkingDir
 
 loop:
 	for _, node := range test.Children {
@@ -159,11 +179,11 @@ loop:
 			}
 		case *CommandNode:
 			if callbacks.OnStartCommand != nil {
-				callbacks.OnStartCommand(test, *node, wd)
+				callbacks.OnStartCommand(test, *node, config)
 			}
-			wd, err = runCmd(node, wd, config.Update, &hasChanges)
+			config.WorkingDir, err = runCmd(node, config, &hasChanges)
 			if callbacks.OnFinishCommand != nil {
-				callbacks.OnFinishCommand(test, *node, wd, err)
+				callbacks.OnFinishCommand(test, *node, config, err)
 			}
 			if err != nil {
 				break loop
@@ -189,50 +209,61 @@ loop:
 	return err
 }
 
-func runCmd(node *CommandNode, wd string, update bool, hasChanges *bool) (string, error) {
+func runCmd(node *CommandNode, config RunConfig, hasChanges *bool) (string, error) {
 	if node.IsEmpty() {
-		return wd, fmt.Errorf("unexpected empty command")
+		return config.WorkingDir, fmt.Errorf("unexpected empty command")
 	}
 
 	if strings.HasPrefix(node.Cmd, "cd ") {
 		path := strings.TrimPrefix(node.Cmd, "cd ")
-		return filepath.Join(wd, path), nil
+		path, err := expandString(path, config.Context())
+		return filepath.Join(config.WorkingDir, path), err
 
 	} else {
-		err := runShellCmd(node, wd, update, hasChanges)
-		return wd, err
+		err := runShellCmd(node, config, hasChanges)
+		return config.WorkingDir, err
 	}
 }
 
-func runShellCmd(node *CommandNode, wd string, update bool, hasChanges *bool) error {
-	cmd := cmdFromString(node.Cmd)
-	cmd.Dir = wd
+func runShellCmd(sourceNode *CommandNode, config RunConfig, hasChanges *bool) error {
+	node, err := expandNode(*sourceNode, config.Context())
+	if err != nil {
+		return err
+	}
+
+	cmd := executil.CommandFromString(node.Cmd)
+	cmd.Dir = config.WorkingDir
 	if !node.Stdin.IsEmpty() {
 		cmd.Stdin = strings.NewReader(node.Stdin.Content)
 	}
-	if wd != "" {
-		cmd.Env = []string{"PATH=" + wd + ":" + os.Getenv("PATH")}
+	if config.WorkingDir != "" {
+		cmd.Env = []string{"PATH=" + config.WorkingDir + ":" + os.Getenv("PATH")}
 	}
 	var stdoutBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	var stderrBuf bytes.Buffer
 	cmd.Stderr = &stderrBuf
 
-	err := cmd.Run()
+	err = cmd.Run()
 
 	stderr := string(stderrBuf.Bytes())
 	// Sometimes some garbage \r is prepended to stdout/stderr.
 	stderr = strings.TrimLeft(stderr, "\r")
 	expectedStderr := node.Stderr.Dump()
-	if stderr != expectedStderr {
-		if update {
-			node.Stderr.Content = stderr
+	matched, matchErr := matchString(stderr, expectedStderr)
+	if matchErr != nil {
+		return matchErr
+	}
+	if !matched {
+		if config.Update {
+			sourceNode.Stderr.Content = stderr
 			*hasChanges = true
 		} else {
+			_, expected := expandRegexes(expectedStderr)
 			return DataAssertError{
 				FD:       Stderr,
 				Received: stderr,
-				Expected: expectedStderr,
+				Expected: expected,
 			}
 		}
 	}
@@ -240,15 +271,20 @@ func runShellCmd(node *CommandNode, wd string, update bool, hasChanges *bool) er
 	stdout := string(stdoutBuf.Bytes())
 	stdout = strings.TrimLeft(stdout, "\r")
 	expectedStdout := node.Stdout.Dump()
-	if stdout != expectedStdout {
-		if update {
-			node.Stdout.Content = stdout
+	matched, matchErr = matchString(stdout, expectedStdout)
+	if matchErr != nil {
+		return matchErr
+	}
+	if !matched {
+		if config.Update {
+			sourceNode.Stdout.Content = stdout
 			*hasChanges = true
 		} else {
+			_, expected := expandRegexes(expectedStdout)
 			return DataAssertError{
 				FD:       Stdout,
 				Received: stdout,
-				Expected: expectedStdout,
+				Expected: expected,
 			}
 		}
 	}
@@ -257,8 +293,8 @@ func runShellCmd(node *CommandNode, wd string, update bool, hasChanges *bool) er
 		if err, ok := err.(*exec.ExitError); ok {
 			status := err.ExitCode()
 			if status != node.ExitCode {
-				if update {
-					node.ExitCode = status
+				if config.Update {
+					sourceNode.ExitCode = status
 					*hasChanges = true
 				} else {
 					return ExitCodeAssertError{
@@ -273,8 +309,8 @@ func runShellCmd(node *CommandNode, wd string, update bool, hasChanges *bool) er
 		}
 	} else {
 		if node.ExitCode != 0 {
-			if update {
-				node.ExitCode = 0
+			if config.Update {
+				sourceNode.ExitCode = 0
 				*hasChanges = true
 			} else {
 				return ExitCodeAssertError{
@@ -288,11 +324,57 @@ func runShellCmd(node *CommandNode, wd string, update bool, hasChanges *bool) er
 	return nil
 }
 
-func cmdFromString(command string, args ...string) *exec.Cmd {
-	shell := os.Getenv("SHELL")
-	if len(shell) == 0 {
-		shell = "sh"
+func expandNode(node CommandNode, context map[string]interface{}) (CommandNode, error) {
+	var err error
+	node.Cmd, err = expandString(node.Cmd, context)
+	if err != nil {
+		return node, err
 	}
-	args = append([]string{"-c", command, "--"}, args...)
-	return exec.Command(shell, args...)
+	node.Stdin.Content, err = expandString(node.Stdin.Content, context)
+	if err != nil {
+		return node, err
+	}
+	node.Stdout.Content, err = expandString(node.Stdout.Content, context)
+	if err != nil {
+		return node, err
+	}
+	node.Stderr.Content, err = expandString(node.Stderr.Content, context)
+	if err != nil {
+		return node, err
+	}
+	return node, err
+}
+
+func expandString(s string, context map[string]interface{}) (string, error) {
+	tpl, err := raymond.Parse(s)
+	if err != nil {
+		return "", err
+	}
+	return tpl.Exec(context)
+}
+
+func matchString(actual string, expected string) (bool, error) {
+	if actual == "" && expected == "" {
+		return true, nil
+	}
+	hasRegexes, expected := expandRegexes(expected)
+	if !hasRegexes {
+		return actual == expected, nil
+	}
+
+	reg, err := regexp.Compile(expected)
+	if err != nil {
+		return false, err
+	}
+	res := reg.Match([]byte(actual))
+	return res, nil
+}
+
+func expandRegexes(s string) (bool, string) {
+	res := regexp.QuoteMeta(s)
+	res, hasRegex := handlebars.ExpandRegexes(res)
+	if !hasRegex {
+		return false, s
+	}
+	return true, "^" + res + "$"
 }

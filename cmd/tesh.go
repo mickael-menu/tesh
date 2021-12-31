@@ -14,6 +14,8 @@ func main() {
 
 	var update bool
 	flag.BoolVar(&update, "u", false, "overwrite test cases instead of failing")
+	var printBytes bool
+	flag.BoolVar(&printBytes, "b", false, "print bytes instead of strings")
 	flag.Parse()
 
 	values := flag.Args()
@@ -37,9 +39,27 @@ func main() {
 		Update:     update,
 		WorkingDir: wd,
 		Callbacks: tesh.RunCallbacks{
-			OnFinishCommand: func(test tesh.TestNode, cmd tesh.CommandNode, wd string, err error) {
+			OnFinishCommand: func(test tesh.TestNode, cmd tesh.CommandNode, config tesh.RunConfig, err error) {
 				if err != nil {
-					fmt.Printf("%s:\n$ %s\n%s\n\n", test.Name, cmd.Cmd, err)
+					fmt.Printf("FAIL %s: $ %s\n", test.Name, cmd.Cmd)
+					switch err := err.(type) {
+					case tesh.ExitCodeAssertError:
+						fmt.Printf("\t%s\n", err)
+					case tesh.DataAssertError:
+						fmt.Printf("expected on %s:\n---\n", err.FD.String())
+						if printBytes {
+							fmt.Println([]byte(err.Expected))
+						}
+						fmt.Println(err.Expected)
+						fmt.Println("---\ngot:\n---")
+						if printBytes {
+							fmt.Println([]byte(err.Received))
+						}
+						fmt.Println(err.Received)
+						fmt.Println("---")
+					}
+				} else {
+					fmt.Printf("OK %s: $ %s\n", test.Name, cmd.Cmd)
 				}
 			},
 		},
