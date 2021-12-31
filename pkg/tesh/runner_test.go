@@ -79,7 +79,7 @@ func TestRunExpandVariablesInCommands(t *testing.T) {
 $ echo {{output}}
 >hello
 `, RunConfig{
-		Context: map[string]interface{}{
+		context: map[string]interface{}{
 			"output": "hello",
 		},
 	})
@@ -91,7 +91,7 @@ $ cat -n
 <{{input}}
 >     1	hello
 `, RunConfig{
-		Context: map[string]interface{}{
+		context: map[string]interface{}{
 			"input": "hello",
 		},
 	})
@@ -102,7 +102,7 @@ func TestRunExpandVariablesInStdout(t *testing.T) {
 $ echo "hello"
 >{{output}}
 `, RunConfig{
-		Context: map[string]interface{}{
+		context: map[string]interface{}{
 			"output": "hello",
 		},
 	})
@@ -113,7 +113,7 @@ func TestRunExpandVariablesInStderr(t *testing.T) {
 $ echo "hello" 1>&2
 2>{{output}}
 `, RunConfig{
-		Context: map[string]interface{}{
+		context: map[string]interface{}{
 			"output": "hello",
 		},
 	})

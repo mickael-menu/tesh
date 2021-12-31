@@ -13,6 +13,7 @@ import (
 	_ "github.com/mickael-menu/tesh/pkg/internal/handlebars"
 	"github.com/mickael-menu/tesh/pkg/internal/util/errors"
 	executil "github.com/mickael-menu/tesh/pkg/internal/util/exec"
+	"github.com/mickael-menu/tesh/pkg/internal/util/paths"
 )
 
 type RunCallbacks struct {
@@ -54,8 +55,18 @@ type RunConfig struct {
 	// When true, will overwrite the test to make them pass.
 	Update     bool
 	WorkingDir string
-	Context    map[string]interface{}
 	Callbacks  RunCallbacks
+	context    map[string]interface{}
+}
+
+func (c RunConfig) Context() map[string]interface{} {
+	context := c.context
+	if context == nil {
+		context = map[string]interface{}{}
+	}
+
+	context["working-dir"] = c.WorkingDir
+	return context
 }
 
 type RunReport struct {
@@ -103,6 +114,10 @@ func RunSuite(suite TestSuiteNode, config RunConfig) (RunReport, error) {
 
 func setupTempWorkingDir(name string, sourceDir string) (string, error) {
 	targetDir, err := ioutil.TempDir("", strings.ReplaceAll(name, "/", "-")+"-*")
+	if err != nil {
+		return "", err
+	}
+	targetDir, err = paths.Canonical(targetDir)
 	if err != nil {
 		return "", err
 	}
@@ -199,7 +214,7 @@ func runCmd(node *CommandNode, config RunConfig, hasChanges *bool) (string, erro
 
 	if strings.HasPrefix(node.Cmd, "cd ") {
 		path := strings.TrimPrefix(node.Cmd, "cd ")
-		path, err := expandString(path, config.Context)
+		path, err := expandString(path, config.Context())
 		return filepath.Join(config.WorkingDir, path), err
 
 	} else {
@@ -209,7 +224,7 @@ func runCmd(node *CommandNode, config RunConfig, hasChanges *bool) (string, erro
 }
 
 func runShellCmd(sourceNode *CommandNode, config RunConfig, hasChanges *bool) error {
-	node, err := expandNode(*sourceNode, config.Context)
+	node, err := expandNode(*sourceNode, config.Context())
 	if err != nil {
 		return err
 	}
