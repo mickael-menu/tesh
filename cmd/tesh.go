@@ -41,7 +41,7 @@ func main() {
 		Callbacks: tesh.RunCallbacks{
 			OnFinishCommand: func(test tesh.TestNode, cmd tesh.CommandNode, config tesh.RunConfig, err error) {
 				if err != nil {
-					fmt.Printf("%s: $ %s\n", test.Name, cmd.Cmd)
+					fmt.Printf("FAIL %s: $ %s\n", test.Name, cmd.Cmd)
 					switch err := err.(type) {
 					case tesh.ExitCodeAssertError:
 						fmt.Printf("\t%s\n", err)
@@ -58,6 +58,8 @@ func main() {
 						fmt.Println(err.Received)
 						fmt.Println("---")
 					}
+				} else {
+					fmt.Printf("OK %s: $ %s\n", test.Name, cmd.Cmd)
 				}
 			},
 		},

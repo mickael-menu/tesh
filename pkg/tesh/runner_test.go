@@ -138,8 +138,20 @@ $ echo "[h]ello"
 	`, DataAssertError{
 		FD:       Stdout,
 		Received: "[h]ello\n",
-		Expected: `\[h\]\d+o
-`,
+		Expected: `^\[h\]\d+o
+$`,
+	})
+}
+
+func TestRunMatchRegexSubstring(t *testing.T) {
+	testRunErr(t, `
+$ echo "[h]ello"
+>{{match "ell"}}
+	`, DataAssertError{
+		FD:       Stdout,
+		Received: "[h]ello\n",
+		Expected: `^ell
+$`,
 	})
 }
 

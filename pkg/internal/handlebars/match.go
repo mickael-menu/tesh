@@ -26,9 +26,11 @@ func registerRegex(regex string) string {
 	return id
 }
 
-func ExpandRegexes(s string) string {
-	return idRegex.ReplaceAllStringFunc(s, func(id string) string {
+func ExpandRegexes(s string) (string, bool) {
+	hasRegex := false
+	s = idRegex.ReplaceAllStringFunc(s, func(id string) string {
 		if regex, ok := regexRegistry[id]; ok {
+			hasRegex = true
 			// delete(regexRegistry, id)
 			return regex
 		} else {
@@ -36,4 +38,6 @@ func ExpandRegexes(s string) string {
 			return id
 		}
 	})
+
+	return s, hasRegex
 }

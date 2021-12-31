@@ -259,10 +259,11 @@ func runShellCmd(sourceNode *CommandNode, config RunConfig, hasChanges *bool) er
 			sourceNode.Stderr.Content = stderr
 			*hasChanges = true
 		} else {
+			_, expected := expandRegexes(expectedStderr)
 			return DataAssertError{
 				FD:       Stderr,
 				Received: stderr,
-				Expected: expandRegexes(expectedStderr),
+				Expected: expected,
 			}
 		}
 	}
@@ -279,10 +280,11 @@ func runShellCmd(sourceNode *CommandNode, config RunConfig, hasChanges *bool) er
 			sourceNode.Stdout.Content = stdout
 			*hasChanges = true
 		} else {
+			_, expected := expandRegexes(expectedStdout)
 			return DataAssertError{
 				FD:       Stdout,
 				Received: stdout,
-				Expected: expandRegexes(expectedStdout),
+				Expected: expected,
 			}
 		}
 	}
@@ -355,7 +357,11 @@ func matchString(actual string, expected string) (bool, error) {
 	if actual == "" && expected == "" {
 		return true, nil
 	}
-	expected = expandRegexes(expected)
+	hasRegexes, expected := expandRegexes(expected)
+	if !hasRegexes {
+		return actual == expected, nil
+	}
+
 	reg, err := regexp.Compile(expected)
 	if err != nil {
 		return false, err
@@ -364,6 +370,11 @@ func matchString(actual string, expected string) (bool, error) {
 	return res, nil
 }
 
-func expandRegexes(s string) string {
-	return handlebars.ExpandRegexes(regexp.QuoteMeta(s))
+func expandRegexes(s string) (bool, string) {
+	res := regexp.QuoteMeta(s)
+	res, hasRegex := handlebars.ExpandRegexes(res)
+	if !hasRegex {
+		return false, s
+	}
+	return true, "^" + res + "$"
 }
