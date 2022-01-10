@@ -58,8 +58,11 @@ func main() {
 						fmt.Println(err.Received)
 						fmt.Println("---")
 					}
-				} else {
-					fmt.Printf("OK %s: $ %s\n", test.Name, cmd.Cmd)
+				}
+			},
+			OnFinishTest: func(test tesh.TestNode, err error) {
+				if err == nil {
+					fmt.Printf("OK %s\n", test.Name)
 				}
 			},
 		},
