@@ -13,7 +13,7 @@ You need a working [Go installation](https://golang.org/) to build `tesh`.
 ```sh
 $ git clone https://github.com/mickael-menu/tesh.git
 $ cd tesh
-$ go install cmd/tesh.go
+$ go install tesh.go
 ```
 
 ## Usage
