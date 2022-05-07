@@ -72,6 +72,7 @@ func ParseTest(content string) (TestNode, error) {
 		switch line := line.(type) {
 		case BlankLine:
 			flushComment()
+			script.Children = append(script.Children, SpacerNode{Lines: line.Count})
 
 		case CommandLine:
 			cmd = &CommandNode{
@@ -141,7 +142,7 @@ func parseLines(content string) ([]Line, error) {
 
 func parseLine(line string) (Line, error) {
 	if strings.TrimSpace(line) == "" {
-		return BlankLine{}, nil
+		return BlankLine{Count: 1}, nil
 	}
 
 	var prefix string

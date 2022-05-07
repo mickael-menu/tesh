@@ -7,11 +7,12 @@ import (
 )
 
 func TestParseScriptEmpty(t *testing.T) {
-	testParseScript(t, "   ", TestNode{})
+	testParseScript(t, "   ", TestNode{Children: []Node{SpacerNode{Lines: 1}}})
 }
 
 func TestParseScriptComplete(t *testing.T) {
 	testParseScript(t, `# Script header
+
 
 # Create a file
 $ echo "hello\nworld" > test
@@ -19,7 +20,6 @@ $ echo "hello\nworld" > test
 # Read the created file
 $ cat test
 >hello
-
 >world
 
 # In-between comment
@@ -27,23 +27,26 @@ $ cat test
 # Read a file that doesn't exist
 1$ cat unknown
 2>cat: unknown: No such file or directory
-
 100$ exit 100
 
 $ cat -n
 <Input content
 >     1	Input content`, TestNode{Children: []Node{
 		CommentNode{Content: "Script header"},
+		SpacerNode{Lines: 2},
 		&CommandNode{
 			Comment: CommentNode{Content: "Create a file"},
 			Cmd:     "echo \"hello\\nworld\" > test",
 		},
+		SpacerNode{Lines: 1},
 		&CommandNode{
 			Comment: CommentNode{Content: "Read the created file"},
 			Cmd:     "cat test",
 			Stdout:  DataNode{Content: "hello\nworld\n"},
 		},
+		SpacerNode{Lines: 1},
 		CommentNode{Content: "In-between comment"},
+		SpacerNode{Lines: 1},
 		&CommandNode{
 			Comment:  CommentNode{Content: "Read a file that doesn't exist"},
 			Cmd:      "cat unknown",
@@ -54,6 +57,7 @@ $ cat -n
 			Cmd:      "exit 100",
 			ExitCode: 100,
 		},
+		SpacerNode{Lines: 1},
 		&CommandNode{
 			Cmd:    "cat -n",
 			Stdin:  DataNode{Content: "Input content\n"},
@@ -78,11 +82,11 @@ func testParseScriptErr(t *testing.T, content string, msg string) {
 }
 
 func TestParseLinesEmpty(t *testing.T) {
-	testParseLines(t, "   ", []Line{BlankLine{}})
+	testParseLines(t, "   ", []Line{BlankLine{Count: 1}})
 }
 
 func TestParseLinesBlank(t *testing.T) {
-	testParseLines(t, "\n\n", []Line{BlankLine{}})
+	testParseLines(t, "\n\n", []Line{BlankLine{Count: 2}})
 }
 
 func TestParseLinesComment(t *testing.T) {
@@ -158,7 +162,7 @@ func TestParseLinesMultipleStdin(t *testing.T) {
 <Another one
 `, []Line{
 		DataLine{FD: Stdin, Content: "  Input sent to a program \n	\n which spans\nseveral lines    \n"},
-		BlankLine{},
+		BlankLine{Count: 1},
 		DataLine{FD: Stdin, Content: "Another one\n"},
 	})
 }
@@ -194,7 +198,7 @@ func TestParseLinesMultipleStdout(t *testing.T) {
 >Another one
 `, []Line{
 		DataLine{FD: Stdout, Content: "  Output from a program \n	\n which spans\nseveral lines    \n"},
-		BlankLine{},
+		BlankLine{Count: 1},
 		DataLine{FD: Stdout, Content: "Another one\n"},
 	})
 }
@@ -224,7 +228,7 @@ func TestParseLinesMultipleStderr(t *testing.T) {
 2>Another one
 `, []Line{
 		DataLine{FD: Stderr, Content: "  Error from a program \n	\n which spans\nseveral lines    \n"},
-		BlankLine{},
+		BlankLine{Count: 1},
 		DataLine{FD: Stderr, Content: "Another one\n"},
 	})
 }
@@ -250,18 +254,18 @@ $ ls
 `, []Line{
 		CommentLine{Content: "Create a file"},
 		CommandLine{Cmd: `echo "hello" > test`},
-		BlankLine{},
+		BlankLine{Count: 1},
 		CommentLine{Content: "Read the created file"},
 		CommandLine{Cmd: "cat test"},
 		DataLine{FD: Stdout, Content: "hello\n"},
-		BlankLine{},
+		BlankLine{Count: 1},
 		CommentLine{Content: "Read a file that doesn't exist"},
 		CommandLine{Cmd: "cat unknown", ExitCode: 1},
 		DataLine{FD: Stderr, Content: "cat: unknown: No such file or directory\n"},
-		BlankLine{},
+		BlankLine{Count: 1},
 		CommandLine{Cmd: "read input"},
 		DataLine{FD: Stdin, Content: "Input content\n"},
-		BlankLine{},
+		BlankLine{Count: 1},
 		CommandLine{Cmd: "ls"},
 		DataLine{FD: Stdout, Content: "total 8\n-rw-r--r--  1 mickael     6B Dec 28 10:16 test\n"},
 	})

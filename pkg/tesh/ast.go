@@ -43,9 +43,11 @@ func (n TestNode) Dump() string {
 	for _, node := range n.Children {
 		switch node := node.(type) {
 		case CommentNode:
-			out += node.Dump() + "\n"
+			out += node.Dump()
 		case *CommandNode:
-			out += node.Dump() + "\n"
+			out += node.Dump()
+		case SpacerNode:
+			out += node.Dump()
 
 		default:
 			panic(fmt.Sprintf("unknown test Node: %s", node.Dump()))
@@ -141,15 +143,32 @@ func (n DataNode) Append(line DataLine) DataNode {
 	}
 }
 
+type SpacerNode struct {
+	Lines int
+}
+
+func (n SpacerNode) IsEmpty() bool {
+	return n.Lines == 0
+}
+
+func (n SpacerNode) Dump() string {
+	return strings.Repeat("\n", n.Lines)
+}
+
 type Line interface {
 	Merge(other Line) (Line, bool)
 }
 
-type BlankLine struct{}
+type BlankLine struct {
+	Count int
+}
 
 func (s BlankLine) Merge(other Line) (Line, bool) {
-	_, ok := other.(BlankLine)
-	return s, ok
+	if o, ok := other.(BlankLine); ok {
+		return BlankLine{Count: s.Count + o.Count}, true
+	} else {
+		return s, false
+	}
 }
 
 type CommentLine struct {
