@@ -188,6 +188,8 @@ loop:
 			if err != nil {
 				break loop
 			}
+		case SpacerNode:
+			continue
 		default:
 			panic(fmt.Sprintf("unknown test Node: %s", node.Dump()))
 		}
