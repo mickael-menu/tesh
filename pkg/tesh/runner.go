@@ -246,6 +246,7 @@ func runShellCmd(sourceNode *CommandNode, config RunConfig, hasChanges *bool) er
 	var stderrBuf bytes.Buffer
 	cmd.Stderr = &stderrBuf
 
+	cmd.Env = append(cmd.Env, "RUNNING_TESH=1")
 	err = cmd.Run()
 
 	stderr := string(stderrBuf.Bytes())
