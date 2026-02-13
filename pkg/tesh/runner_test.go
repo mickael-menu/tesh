@@ -13,7 +13,7 @@ func TestRunEmpty(t *testing.T) {
 func TestRunSuccess(t *testing.T) {
 	testRun(t, `
 # Test output on stdout
-$ echo "hello\nworld"
+$ echo -e "hello\nworld"
 >hello
 >world
 
