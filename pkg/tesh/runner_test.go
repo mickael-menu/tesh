@@ -33,6 +33,20 @@ $ cat -n
 `)
 }
 
+func TestRunLangC(t *testing.T) {
+	testRun(t, `
+$ printenv LANG
+>C
+`)
+}
+
+func TestRunLangOverwrite(t *testing.T) {
+	testRun(t, `
+$ env LANG=de_DE.UTF-8 printenv LANG
+>de_DE.UTF-8
+`)
+}
+
 func TestRunFailureStdout(t *testing.T) {
 	testRunErr(t, `
 $ echo "hello"
