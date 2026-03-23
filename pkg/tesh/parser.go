@@ -52,7 +52,7 @@ func ParseSuiteSingleFile(path string) (TestSuiteNode, error) {
 	var suite TestSuiteNode
 
 	if filepath.Ext(path) != ".tesh" {
-		return suite, errors.New("file should be tesh file")
+		return suite, errors.New(fmt.Sprintf("invalid test file %q: expected a .tesh extension", path))
 	}
 
 	abs, err := filepath.Abs(path)
