@@ -26,14 +26,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	testsDir := values[0]
+	testsPath := values[0]
 	wd := ""
 	if len(values) >= 2 {
 		wd, err = filepath.Abs(values[1])
 		exitIfErr(err)
 	}
 
-	suite, err := tesh.ParseSuite(testsDir)
+	fileInfo, err := os.Stat(testsPath)
+	exitIfErr(err)
+
+	var suite tesh.TestSuiteNode
+
+	if fileInfo.IsDir() {
+		suite, err = tesh.ParseSuite(testsPath)
+	} else {
+		suite, err = tesh.ParseSuiteSingleFile(testsPath)
+	}
 	exitIfErr(err)
 	report, err := tesh.RunSuite(suite, tesh.RunConfig{
 		Update:     update,

@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/mickael-menu/tesh/pkg/internal/util/errors"
 )
 
 func ParseSuite(rootDir string) (TestSuiteNode, error) {
@@ -41,6 +43,31 @@ func ParseSuite(rootDir string) (TestSuiteNode, error) {
 	})
 
 	return suite, err
+}
+
+// ParseSuiteSingleFile parses a single test file.
+// Unlike ParseSuite, which targets a directory, this function expects
+// a direct path to a .tesh file.
+func ParseSuiteSingleFile(path string) (TestSuiteNode, error) {
+	var suite TestSuiteNode
+
+	if filepath.Ext(path) != ".tesh" {
+		return suite, errors.New(fmt.Sprintf("invalid test file %q: expected a .tesh extension", path))
+	}
+
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return suite, err
+	}
+	test, err := ParseTestFile(abs)
+	if err != nil {
+		return suite, err
+	}
+
+	test.Name = path
+	test.Path = abs
+	suite.Tests = append(suite.Tests, test)
+	return suite, nil
 }
 
 func ParseTestFile(path string) (TestNode, error) {
